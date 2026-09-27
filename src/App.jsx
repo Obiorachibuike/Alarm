@@ -134,7 +134,7 @@ export default function App() {
         // Fire on time OR recover from a short background-tab suspension.
         if (lateness < 0 || lateness > MISSED_ALARM_GRACE_MS) continue;
 
-        const occurrenceKey = \`\${alarm.id}:\${dateKey}:\${alarm.time}\`;
+        const occurrenceKey = alarm.id + ':' + dateKey + ':' + alarm.time;
         if (firedOccurrencesRef.current.has(occurrenceKey)) continue;
 
         firedOccurrencesRef.current.add(occurrenceKey);
