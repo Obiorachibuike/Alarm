@@ -185,17 +185,27 @@ export default function App() {
   const triggerAlarm = (alarm) => {
     setActiveTrigger(alarm);
 
-    // Provide a system-level visual fallback when notifications are already permitted.
+    // Prefer persistent service-worker notifications (important on mobile).
     if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(alarm.label || 'AURA Alarm', {
-          body: `Alarm scheduled for ${alarm.time}`,
-          tag: `aura-alarm-${alarm.id}`,
-          requireInteraction: true
+      const notificationOptions = {
+        body: 'Alarm scheduled for ' + alarm.time,
+        tag: 'aura-alarm-' + alarm.id,
+        requireInteraction: true,
+        vibrate: [500, 200, 500, 200, 1000]
+      };
+
+      navigator.serviceWorker?.getRegistration()
+        .then(registration => {
+          if (registration) {
+            return registration.showNotification(alarm.label || 'AURA Alarm', notificationOptions);
+          }
+
+          // Desktop fallback when a service worker is unavailable.
+          return new Notification(alarm.label || 'AURA Alarm', notificationOptions);
+        })
+        .catch(error => {
+          console.warn('Notification error:', error);
         });
-      } catch (error) {
-        console.warn('Notification error:', error);
-      }
     }
     
     // Start audio alarm tone loop
