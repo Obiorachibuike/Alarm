@@ -9,33 +9,73 @@ class AudioSynthesizer {
   init() {
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null;
       this.ctx = new AudioCtx();
     }
+
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      // Browsers may suspend Web Audio until a user gesture resumes it.
+      this.ctx.resume().catch(() => {});
     }
+
+    return this.ctx;
+  }
+
+  unlock() {
+    const ctx = this.init();
+    if (!ctx) return false;
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    // Create a silent buffer during the user gesture to establish an audio session.
+    try {
+      const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      source.buffer = buffer;
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start(0);
+    } catch (e) {
+      console.warn('Audio unlock error:', e);
+    }
+
+    return true;
   }
 
   playTone(frequency = 440, type = 'sine', duration = 0.4, gainLevel = 0.2) {
-    this.init();
-    try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+    const ctx = this.init();
+    if (!ctx) return;
+
+    const scheduleTone = () => {
+      try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
       osc.type = type;
-      osc.frequency.setValueAtTime(frequency, this.ctx.currentTime);
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
 
-      gain.gain.setValueAtTime(0, this.ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(gainLevel, this.ctx.currentTime + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(gainLevel, ctx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(ctx.destination);
 
       osc.start();
-      osc.stop(this.ctx.currentTime + duration);
+      osc.stop(ctx.currentTime + duration);
     } catch (e) {
       console.warn("Audio play error:", e);
+    }
+    };
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(scheduleTone).catch(() => {});
+    } else {
+      scheduleTone();
     }
   }
 
