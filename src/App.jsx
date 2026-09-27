@@ -132,7 +132,7 @@ export default function App() {
 
   const triggerAlarm = (alarm) => {
     setActiveTrigger(alarm);
-    setSnoozeCount(0);
+    setSnoozeCount(alarm.snoozeCount || 0);
     
     // Start audio alarm tone loop
     audioSynth.startAlarmLoop(alarm.tone || 'cyber');
@@ -198,7 +198,8 @@ export default function App() {
       label: `[Snoozed] ${activeTrigger.label}`,
       time: `${snoozeHours}:${snoozeMins}`,
       enabled: true,
-      repeatDays: []
+      repeatDays: [],
+      snoozeCount: snoozeCount + 1
     };
     setAlarms(prev => [snoozedAlarm, ...prev]);
   };
