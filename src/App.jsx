@@ -90,7 +90,14 @@ export default function App() {
   const [activeChallenge, setActiveChallenge] = useState(null);
   const [activeBriefingText, setActiveBriefingText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const firedOccurrencesRef = useRef(new Set());
+  const firedOccurrencesRef = useRef(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('aura_fired_occurrences') || '[]');
+      return new Set(Array.isArray(stored) ? stored : []);
+    } catch {
+      return new Set();
+    }
+  });
 
   // Prime Web Audio from the user's first interaction so alarm playback is less likely to be blocked later.
   useEffect(() => {
@@ -151,6 +158,12 @@ export default function App() {
         if (firedOccurrencesRef.current.has(occurrenceKey)) continue;
 
         firedOccurrencesRef.current.add(occurrenceKey);
+        try {
+          const recent = Array.from(firedOccurrencesRef.current).slice(-100);
+          localStorage.setItem('aura_fired_occurrences', JSON.stringify(recent));
+        } catch {
+          // Alarm execution must continue even if storage is unavailable.
+        }
 
         // A zero-repeat-day alarm means "one time", not "every day".
         if (isOneTime) {
