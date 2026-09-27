@@ -37,8 +37,6 @@ export default function CreateAlarmModal({ isOpen, onClose, onSave }) {
       enabled: true,
       isAI,
       personaId,
-      requireChallenge,
-      challengeDifficulty,
       tone,
       repeatDays,
       focusGoal,
