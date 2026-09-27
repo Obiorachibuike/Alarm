@@ -9,7 +9,10 @@ export default function AlarmTriggerModal({
   challenge,
   briefingText,
   isSpeaking,
-  onToggleSpeech
+  onToggleSpeech,
+  snoozeCount = 0,
+  maxSnoozes = 3,
+  snoozeDisabled = false
 }) {
   const [answerInput, setAnswerInput] = useState('');
   const [errorNotice, setErrorNotice] = useState(false);
@@ -124,12 +127,15 @@ export default function AlarmTriggerModal({
 
         {/* Action buttons */}
         <div className="flex items-center justify-between gap-3 pt-2">
-          <button
-            onClick={onSnooze}
-            className="flex-1 py-3 px-4 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
-          >
-            Snooze (+5 Mins)
-          </button>
+          {!snoozeDisabled && (
+            <button
+              onClick={onSnooze}
+              disabled={snoozeCount >= maxSnoozes}
+              className="flex-1 py-3 px-4 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {snoozeCount >= maxSnoozes ? 'Snooze Limit Reached' : `Snooze (+5 Mins) • ${snoozeCount}/${maxSnoozes}`}
+            </button>
+          )}
           
           {!challenge && (
             <button
