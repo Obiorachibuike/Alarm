@@ -27,6 +27,8 @@ import Timer from './components/Timer';
 import CreateAlarmModal from './components/CreateAlarmModal';
 import AlarmTriggerModal from './components/AlarmTriggerModal';
 import AIPersonaStudio from './components/AIPersonaStudio';
+import WakeInsights from './components/WakeInsights';
+import { getWakeHistory, recordWakeEvent } from './utils/wakeStats';
 
 import { audioSynth } from './utils/audio';
 import { PERSONAS, generateAIBriefing, speakText, stopSpeech } from './utils/aiSpeech';
@@ -91,6 +93,8 @@ export default function App() {
   const [activeBriefingText, setActiveBriefingText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [lastTriggeredMinute, setLastTriggeredMinute] = useState(null);
+  const [wakeHistory, setWakeHistory] = useState(() => getWakeHistory());
+  const [snoozeCount, setSnoozeCount] = useState(0);
 
   // Sync alarms to localStorage
   useEffect(() => {
@@ -108,8 +112,8 @@ export default function App() {
       const timeMatchStr = `${hoursStr}:${minutesStr}`;
       const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][now.getDay()];
 
-      // Check if not already triggered this exact minute
-      if (lastTriggeredMinute !== timeMatchStr && now.getSeconds() === 0) {
+      // Trigger once when the clock enters a new minute. Do not depend on the interval firing at second 0.
+      if (lastTriggeredMinute !== timeMatchStr) {
         const matchedAlarm = alarms.find(a => 
           a.enabled && 
           a.time === timeMatchStr &&
@@ -128,6 +132,7 @@ export default function App() {
 
   const triggerAlarm = (alarm) => {
     setActiveTrigger(alarm);
+    setSnoozeCount(alarm.snoozeCount || 0);
     
     // Start audio alarm tone loop
     audioSynth.startAlarmLoop(alarm.tone || 'cyber');
@@ -164,12 +169,18 @@ export default function App() {
   const handleDismissAlarm = () => {
     audioSynth.stopAlarmLoop();
     stopSpeech();
+    const method = activeChallenge ? 'challenge' : 'dismiss';
+    if (activeTrigger) setWakeHistory(recordWakeEvent({ alarmId: activeTrigger.id, alarmLabel: activeTrigger.label, method, snoozes: snoozeCount }));
     setActiveTrigger(null);
     setActiveChallenge(null);
     setIsSpeaking(false);
   };
 
   const handleSnoozeAlarm = () => {
+    if (!activeTrigger) return;
+    const maxSnoozes = activeTrigger.wakeMission?.maxSnoozes ?? 3;
+    if (activeTrigger.wakeMission?.noSnooze || snoozeCount >= maxSnoozes) return;
+    setSnoozeCount(prev => prev + 1);
     audioSynth.stopAlarmLoop();
     stopSpeech();
     setActiveTrigger(null);
@@ -187,7 +198,8 @@ export default function App() {
       label: `[Snoozed] ${activeTrigger.label}`,
       time: `${snoozeHours}:${snoozeMins}`,
       enabled: true,
-      repeatDays: []
+      repeatDays: [],
+      snoozeCount: snoozeCount + 1
     };
     setAlarms(prev => [snoozedAlarm, ...prev]);
   };
@@ -301,6 +313,8 @@ export default function App() {
           </div>
         </div>
 
+        <WakeInsights history={wakeHistory} />
+
         {/* Tab Navigation Navigation Controls */}
         <div className="flex border-b border-slate-800 space-x-1 sm:space-x-3 overflow-x-auto pb-1">
           {[
@@ -413,11 +427,14 @@ export default function App() {
                           )}
                         </div>
 
-                        {alarm.requireChallenge && (
-                          <span className="text-amber-400 font-medium">
-                            Puzzle: {alarm.challengeDifficulty}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {alarm.requireChallenge && (
+                            <span className="text-amber-400 font-medium">Puzzle: {alarm.challengeDifficulty}</span>
+                          )}
+                          {alarm.wakeMission?.enabled && (
+                            <span className="text-cyan-400 font-medium">Mission {alarm.wakeMission.noSnooze ? '• No Snooze' : `• Max ${alarm.wakeMission.maxSnoozes}`}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -486,6 +503,9 @@ export default function App() {
           onToggleSpeech={handleToggleSpeech}
           onDismiss={handleDismissAlarm}
           onSnooze={handleSnoozeAlarm}
+          snoozeCount={snoozeCount}
+          maxSnoozes={activeTrigger.wakeMission?.maxSnoozes ?? 3}
+          snoozeDisabled={Boolean(activeTrigger.wakeMission?.noSnooze)}
         />
       )}
     </div>

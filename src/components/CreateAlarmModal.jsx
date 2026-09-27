@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Brain, Plus, Clock, Sliders, Volume2 } from 'lucide-react';
 import { PERSONAS } from '../utils/aiSpeech';
+import WakeMissionBuilder from './WakeMissionBuilder';
 
 export default function CreateAlarmModal({ isOpen, onClose, onSave }) {
   const [time, setTime] = useState('07:00');
@@ -13,6 +14,7 @@ export default function CreateAlarmModal({ isOpen, onClose, onSave }) {
   const [repeatDays, setRepeatDays] = useState(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
   const [focusGoal, setFocusGoal] = useState('Deep work sprint & fitness');
   const [customNote, setCustomNote] = useState('');
+  const [wakeMission, setWakeMission] = useState({ enabled: true, difficulty: 'medium', noSnooze: false, maxSnoozes: 1 });
 
   if (!isOpen) return null;
 
@@ -35,12 +37,13 @@ export default function CreateAlarmModal({ isOpen, onClose, onSave }) {
       enabled: true,
       isAI,
       personaId,
-      requireChallenge,
-      challengeDifficulty,
       tone,
       repeatDays,
       focusGoal,
-      customNote
+      customNote,
+      requireChallenge: wakeMission.enabled || requireChallenge,
+      challengeDifficulty: wakeMission.difficulty,
+      wakeMission
     });
     onClose();
   };
@@ -236,6 +239,8 @@ export default function CreateAlarmModal({ isOpen, onClose, onSave }) {
               </div>
             )}
           </div>
+
+          <WakeMissionBuilder value={wakeMission} onChange={setWakeMission} />
 
           {/* Audio Chime Tone */}
           <div>
