@@ -13,7 +13,7 @@ class AudioSynthesizer {
       this.ctx = new AudioCtx();
     }
 
-    if (ctx.state === 'suspended') {
+    if (this.ctx.state === 'suspended') {
       // Browsers may suspend Web Audio until a user gesture resumes it.
       ctx.resume().catch(() => {});
     }
