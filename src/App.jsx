@@ -92,6 +92,19 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const firedOccurrencesRef = useRef(new Set());
 
+  // Prime Web Audio from the user's first interaction so alarm playback is less likely to be blocked later.
+  useEffect(() => {
+    const unlockAudio = () => audioSynth.unlock();
+
+    window.addEventListener('pointerdown', unlockAudio, { once: true, passive: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+  }, []);
+
   // Sync alarms to localStorage
   useEffect(() => {
     localStorage.setItem('aura_alarms', JSON.stringify(alarms));
@@ -171,6 +184,19 @@ export default function App() {
 
   const triggerAlarm = (alarm) => {
     setActiveTrigger(alarm);
+
+    // Provide a system-level visual fallback when notifications are already permitted.
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(alarm.label || 'AURA Alarm', {
+          body: `Alarm scheduled for ${alarm.time}`,
+          tag: `aura-alarm-${alarm.id}`,
+          requireInteraction: true
+        });
+      } catch (error) {
+        console.warn('Notification error:', error);
+      }
+    }
     
     // Start audio alarm tone loop
     audioSynth.startAlarmLoop(alarm.tone || 'cyber');
@@ -256,6 +282,10 @@ export default function App() {
   };
 
   const handleAddAlarm = (newAlarm) => {
+    // Ask for notification permission from an explicit user action.
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
     setAlarms([newAlarm, ...alarms]);
   };
 
