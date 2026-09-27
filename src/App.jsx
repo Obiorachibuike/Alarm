@@ -90,14 +90,14 @@ export default function App() {
   const [activeChallenge, setActiveChallenge] = useState(null);
   const [activeBriefingText, setActiveBriefingText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const firedOccurrencesRef = useRef(() => {
+  const firedOccurrencesRef = useRef((() => {
     try {
       const stored = JSON.parse(localStorage.getItem('aura_fired_occurrences') || '[]');
       return new Set(Array.isArray(stored) ? stored : []);
     } catch {
       return new Set();
     }
-  });
+  })());
 
   // Prime Web Audio from the user's first interaction so alarm playback is less likely to be blocked later.
   useEffect(() => {
