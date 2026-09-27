@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Bell, 
   Clock, 
@@ -90,41 +90,84 @@ export default function App() {
   const [activeChallenge, setActiveChallenge] = useState(null);
   const [activeBriefingText, setActiveBriefingText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [lastTriggeredMinute, setLastTriggeredMinute] = useState(null);
+  const firedOccurrencesRef = useRef(new Set());
 
   // Sync alarms to localStorage
   useEffect(() => {
     localStorage.setItem('aura_alarms', JSON.stringify(alarms));
   }, [alarms]);
 
-  // Master Clock Ticker & Trigger Evaluator
+  // Reliable date-based scheduler.
+  // Never depends on hitting exactly second 00 because browsers throttle background timers.
   useEffect(() => {
-    const timer = setInterval(() => {
+    const MISSED_ALARM_GRACE_MS = 2 * 60 * 1000;
+
+    const evaluateAlarms = () => {
       const now = new Date();
       setCurrentTime(now);
 
-      const hoursStr = String(now.getHours()).padStart(2, '0');
-      const minutesStr = String(now.getMinutes()).padStart(2, '0');
-      const timeMatchStr = `${hoursStr}:${minutesStr}`;
+      // Don't replace an alarm that is already ringing. A second due alarm will be
+      // picked up on the next evaluation after the current one is dismissed.
+      if (activeTrigger) return;
+
       const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][now.getDay()];
+      const dateKey = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0')
+      ].join('-');
 
-      // Check if not already triggered this exact minute
-      if (lastTriggeredMinute !== timeMatchStr && now.getSeconds() === 0) {
-        const matchedAlarm = alarms.find(a => 
-          a.enabled && 
-          a.time === timeMatchStr &&
-          (a.repeatDays.length === 0 || a.repeatDays.includes(dayName))
-        );
+      for (const alarm of alarms) {
+        if (!alarm.enabled) continue;
 
-        if (matchedAlarm) {
-          triggerAlarm(matchedAlarm);
-          setLastTriggeredMinute(timeMatchStr);
+        const isOneTime = !Array.isArray(alarm.repeatDays) || alarm.repeatDays.length === 0;
+        if (!isOneTime && !alarm.repeatDays.includes(dayName)) continue;
+
+        const [hours, minutes] = String(alarm.time).split(':').map(Number);
+        if (!Number.isFinite(hours) || !Number.isFinite(minutes)) continue;
+
+        const scheduled = new Date(now);
+        scheduled.setHours(hours, minutes, 0, 0);
+
+        const lateness = now.getTime() - scheduled.getTime();
+
+        // Fire on time OR recover from a short background-tab suspension.
+        if (lateness < 0 || lateness > MISSED_ALARM_GRACE_MS) continue;
+
+        const occurrenceKey = \`\${alarm.id}:\${dateKey}:\${alarm.time}\`;
+        if (firedOccurrencesRef.current.has(occurrenceKey)) continue;
+
+        firedOccurrencesRef.current.add(occurrenceKey);
+
+        // A zero-repeat-day alarm means "one time", not "every day".
+        if (isOneTime) {
+          setAlarms(prev =>
+            prev.map(item => item.id === alarm.id ? { ...item, enabled: false } : item)
+          );
         }
-      }
-    }, 1000);
 
-    return () => clearInterval(timer);
-  }, [alarms, lastTriggeredMinute]);
+        triggerAlarm(alarm);
+        break;
+      }
+    };
+
+    evaluateAlarms();
+    const timer = window.setInterval(evaluateAlarms, 1000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) evaluateAlarms();
+    };
+    const handleFocus = () => evaluateAlarms();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [alarms, activeTrigger]);
 
   const triggerAlarm = (alarm) => {
     setActiveTrigger(alarm);
